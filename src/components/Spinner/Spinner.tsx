@@ -10,7 +10,7 @@ export type SpinnerProps = {
   width?: number;
   height?: number;
   fontFamily?: string;
-  onFinished: (winner: string) => void;
+  onFinished?: (winner: string) => void;
   winningSegment?: string;
   primaryColor?: string;
   primaryColoraround?: string;
@@ -26,7 +26,6 @@ export const Spinner: FC<SpinnerProps> = ({
   primaryColor,
   primaryColoraround,
   contrastColor,
-  buttonText,
   isOnlyOnce = true,
   size = 290,
   upDuration = 1000,
@@ -128,7 +127,7 @@ export const Spinner: FC<SpinnerProps> = ({
     while (angleCurrent >= Math.PI * 2) angleCurrent -= Math.PI * 2;
     if (finished) {
       setFinished(true);
-      onFinished(currentSegment);
+      onFinished?.(currentSegment);
       clearInterval(timerHandle);
       timerHandle = 0;
       angleDelta = 0;
