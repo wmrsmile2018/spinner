@@ -214,28 +214,28 @@ export const Spinner: FC<SpinnerProps> = ({
   const drawNeedle = () => {
     const ctx = canvasContext;
     if (ctx) {
-      //   ctx.lineWidth = 1;
-      //   ctx.strokeStyle = contrastColor || 'white';
-      //   ctx.fillStyle = contrastColor || 'white';
-      //   ctx.beginPath();
-      //   ctx.moveTo(centerX + 10, centerY - 40);
-      //   ctx.lineTo(centerX - 10, centerY - 40);
-      //   ctx.lineTo(centerX, centerY - 60);
-      //   ctx.closePath();
-      //   ctx.fill();
-      //   const change = angleCurrent + Math.PI / 2;
-      //   let i =
-      //     segments.length -
-      //     Math.floor((change / (Math.PI * 2)) * segments.length) -
-      //     1;
-      //   if (i < 0) i = i + segments.length;
-      //   ctx.textAlign = 'center';
-      //   ctx.textBaseline = 'middle';
-      //   ctx.fillStyle = 'transparent';
-      //   ctx.font = 'bold 1.5em ' + fontFamily;
-      //   currentSegment = segments[i];
-      //   isStarted &&
-      //     ctx.fillText(currentSegment, centerX + 10, centerY + size + 50);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = contrastColor || 'white';
+      ctx.fillStyle = contrastColor || 'white';
+      ctx.beginPath();
+      ctx.moveTo(centerX + 10, centerY - 40);
+      ctx.lineTo(centerX - 10, centerY - 40);
+      ctx.lineTo(centerX, centerY - 60);
+      ctx.closePath();
+      ctx.fill();
+      const change = angleCurrent + Math.PI / 2;
+      let i =
+        segments.length -
+        Math.floor((change / (Math.PI * 2)) * segments.length) -
+        1;
+      if (i < 0) i = i + segments.length;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'transparent';
+      ctx.font = 'bold 1.5em ' + fontFamily;
+      currentSegment = segments[i];
+      isStarted &&
+        ctx.fillText(currentSegment, centerX + 10, centerY + size + 50);
     }
   };
   const clear = () => {
@@ -245,6 +245,7 @@ export const Spinner: FC<SpinnerProps> = ({
   return (
     <div id='wheel'>
       <canvas
+        onClick={spin}
         id='canvas'
         width='420'
         height='420'

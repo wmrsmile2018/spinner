@@ -47,6 +47,7 @@ const Label = styled.label`
 `;
 
 const InputTitle = styled.p`
+  color: white;
   margin: 0;
 `;
 

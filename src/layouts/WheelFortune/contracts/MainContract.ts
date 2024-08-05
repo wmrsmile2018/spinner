@@ -60,12 +60,13 @@ export class MainContract implements Contract {
     return {
       is_timer_started: stack.readBoolean(),
       number: stack.readNumber(),
-      recent_sender: stack.readAddress(),
+      last_winner: stack.readAddress(),
       owner_address: stack.readAddress(),
       timer_address: stack.readAddress(),
       addresses: stack.readCellOpt(),
       bets: stack.readCellOpt(),
       total_sum: stack.readNumber(),
+      timer_end_date: stack.readNumber(),
     };
   }
 

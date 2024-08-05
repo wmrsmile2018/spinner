@@ -1,15 +1,29 @@
-import { ChangeEventHandler, FC, useCallback, useMemo, useState } from 'react';
+import {
+  ChangeEventHandler,
+  FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Styled } from './styles';
 import { Auth, Spinner } from '../../components';
-import { useTonConnectUI } from '@tonconnect/ui-react';
-import { useTonConnect } from '../../shared/hooks';
+import {
+  useTonAddress,
+  useTonConnectUI,
+  useTonWallet,
+} from '@tonconnect/ui-react';
+import { useMemoOnce } from '../../shared/hooks';
 import { useWheelContract } from './hooks/useWheelContract';
-import WebApp from '@twa-dev/sdk';
 import {
   MRT_Table, //import alternative sub-component if we do not want toolbars
   type MRT_ColumnDef,
   useMaterialReactTable,
 } from 'material-react-table';
+import dayjs from 'dayjs';
+import { segColors, segments } from './constants';
+import { isEmpty } from 'lodash';
+import { fromNano } from 'ton-core';
 
 const columns: MRT_ColumnDef<{
   index: number;
@@ -17,14 +31,19 @@ const columns: MRT_ColumnDef<{
   amount: string;
 }>[] = [
   {
-    accessorKey: 'index', //access nested data with dot notation
-    header: 'Index',
-    size: 30,
+    accessorKey: 'colorSeg', //normal accessorKey
+    header: 'color',
+    size: 20,
+  },
+  {
+    accessorKey: 'name', //normal accessorKey
+    header: 'name',
+    size: 50,
   },
   {
     accessorKey: 'address',
     header: 'Address',
-    size: 150,
+    size: 100,
   },
   {
     accessorKey: 'amount', //normal accessorKey
@@ -43,9 +62,9 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
     contract_balance,
     is_timer_started,
     contributors_count,
-    recent_sender,
     owner_address,
     timer_address,
+    last_winner,
     addresses,
     bets,
     total_sum,
@@ -53,51 +72,59 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
     sendNewTimerAddress,
     sendDeposit,
     sendFinishGameRequest,
+    timer_end_date,
   } = useWheelContract();
 
-  // console.log('useMainContract()', useWheelContract());
+  const wallet = useTonWallet();
+  const userFriendlyAddress = useTonAddress();
+  const rawAddress = useTonAddress(false);
 
-  const { connected } = useTonConnect();
+  const memoizedTimerEndDate = useMemoOnce(timer_end_date);
+  const [timer, setTimer] = useState<number | null>(null);
+  const [winnerSegment, setWinnerSegment] = useState('');
 
-  const showAlert = () => {
-    WebApp.showAlert('Hey there!');
-  };
-
-  const segments = ['Happy', 'Angry', 'Sad', 'Frustration', 'Emptyness'];
-  const segColors = [
-    '#EE4040',
-    '#F0CF50',
-    '#815CD1',
-    '#3DA5E0',
-    '#34A24F',
-    '#F9AA1F',
-    '#EC3F3F',
-    '#FF9000',
-  ];
   const onFinished = (winner: string) => {
     console.log(winner);
   };
 
   const participants = useMemo(() => {
-    const data = addresses?.split('\n') ?? [];
-    if (addresses !== 'null' && data?.length === 1) {
-      return data;
+    if (addresses === 'null') {
+      return [];
     }
 
-    return addresses?.split('\n').slice(1, addresses.length) ?? [];
+    return addresses?.trim().split(' ');
   }, [addresses]);
 
   const amounts = useMemo(() => {
-    return bets?.split('\n').slice(1, bets.length) ?? [];
+    if (bets === 'null') {
+      return [];
+    }
+    return (
+      bets
+        ?.trim()
+        .split(' ')
+        .map((amount) => fromNano(amount)) ?? []
+    );
   }, [bets]);
+
+  const data = useMemo(
+    () =>
+      (participants ?? []).map((item, i) => ({
+        colorSeg: (
+          <div style={{ background: segColors[i], width: 10, height: 10 }} />
+        ),
+        index: i,
+        address: item,
+        amount: amounts[i],
+        name: segments[i],
+        color: segColors[i],
+      })),
+    [participants, amount, segments, segColors]
+  );
 
   const table = useMaterialReactTable({
     columns,
-    data: participants.map((item, i) => ({
-      index: i,
-      address: item,
-      amount: amounts[i],
-    })), //data must be memoized or stable (useState, useMemo, defined outside of this component, etc.)
+    data,
     enableColumnActions: false,
     enableColumnFilters: false,
     enablePagination: false,
@@ -131,11 +158,43 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
         border: '1px solid #fff',
       },
     },
-    // renderCaption: ({ table }) =>
-    //   `Here is a table rendered with the lighter weight MRT_Table sub-component, rendering ${
-    //     table.getRowModel().rows.length
-    //   } rows.`,
   });
+
+  // useEffect(() => {
+  //   console.log('is_timer_started', { is_timer_started, memoizedTimerEndDate });
+  // }, [is_timer_started, memoizedTimerEndDate]);
+
+  useEffect(() => {
+    console.log('memoizedTimerEndDate, is_timer_started', {
+      memoizedTimerEndDate,
+      is_timer_started,
+    });
+
+    const difTimer = dayjs(memoizedTimerEndDate).diff(dayjs());
+    let intervalId: number;
+
+    if (is_timer_started && difTimer > 0) {
+      const startSpin = () => {
+        const canvasEl = document.getElementById('canvas');
+
+        if (canvasEl) {
+          canvasEl.click();
+        }
+      };
+
+      intervalId = setInterval(() => {
+        setTimer((prev) => {
+          if (prev && prev <= 0) {
+            clearInterval(intervalId);
+            setTimer(null);
+            startSpin();
+          }
+          return dayjs(memoizedTimerEndDate).diff(dayjs());
+        });
+      }, 10);
+      // setTimeout(startSpin, difTimer);
+    }
+  }, [memoizedTimerEndDate, is_timer_started]);
 
   const handleChangeAmount: ChangeEventHandler<HTMLInputElement> = useCallback(
     ({ target }) => {
@@ -159,20 +218,32 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
             Submit
           </Styled.Button>
         </Styled.FlexContainer>
+        <Styled.FlexContainer direction='row' gap={8} alignitems='flex-end'>
+          <Styled.InputTitle>Time until start:</Styled.InputTitle>
+          {memoizedTimerEndDate && timer && (
+            <Styled.InputTitle>{`${Math.floor(timer / 1000 / 60)}:${Math.floor(
+              (timer / 1000) % 60
+            )
+              .toString()
+              .padStart(2, '0')}`}</Styled.InputTitle>
+          )}
+        </Styled.FlexContainer>
         <MRT_Table table={table} />
-        <Spinner
-          segments={segments}
-          segColors={segColors}
-          winningSegment='Angry'
-          onFinished={(winner) => onFinished(winner)}
-          primaryColor='white'
-          primaryColoraround='#ffffffb4'
-          contrastColor='white'
-          isOnlyOnce={false}
-          size={190}
-          upDuration={700}
-          downDuration={900}
-        />
+        {!isEmpty(data) && (
+          <Spinner
+            segments={data.map((item) => item.name)}
+            segColors={data.map((item) => item.color)}
+            winningSegment='Angry'
+            onFinished={(winner) => onFinished(winner)}
+            primaryColor='white'
+            primaryColoraround='#ffffffb4'
+            contrastColor='white'
+            isOnlyOnce={false}
+            size={190}
+            upDuration={700}
+            downDuration={900}
+          />
+        )}
       </Styled.Content>
     </Styled.Container>
   );

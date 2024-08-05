@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Address, OpenedContract } from 'ton-core';
+import { Address, Dictionary, OpenedContract } from 'ton-core';
 import { toNano } from 'ton-core';
 import {
   useAsyncInitialize,
   useTonClient,
   useTonConnect,
 } from '../../../shared/hooks';
-import { MainContract } from '../contract';
+import { MainContract } from '../contracts/MainContract';
 
 export function useWheelContract() {
   const client = useTonClient();
@@ -18,12 +18,13 @@ export function useWheelContract() {
   const [contractData, setContractData] = useState<null | {
     is_timer_started: boolean;
     contributors_count: number;
-    recent_sender: string;
+    last_winner: string;
     owner_address: string;
-    timer_address: String;
+    timer_address: string;
     addresses: string;
     bets: string;
     total_sum: number;
+    timer_end_date: string | null;
   }>();
 
   const [balance, setBalance] = useState<null | number>(0);
@@ -31,7 +32,7 @@ export function useWheelContract() {
   const mainContract = useAsyncInitialize(async () => {
     if (!client) return;
     const contract = new MainContract(
-      Address.parse('EQB-dYLdlRQFYL1NO-EpOU7SC61uQPlNhaFLY3MvfHCcLLnc')
+      Address.parse('EQBOataeZ_CbnqN86qm7LjhWAJjtcqhiFaBWMKLODyoJX5si')
     );
     return client.open(contract) as OpenedContract<MainContract>;
   }, [client]);
@@ -43,25 +44,48 @@ export function useWheelContract() {
       const val = await mainContract.getData();
       var addressesString = 'null';
       if (val.addresses != null) {
-        addressesString = val.addresses.toString();
+        var string = '';
+        var dict = Dictionary.loadDirect(
+          Dictionary.Keys.Uint(16),
+          Dictionary.Values.Address(),
+          val.addresses
+        );
+        for (let key = 0; key < dict.size; key++) {
+          var element = dict.get(key)?.toString();
+          string = string + ' ' + element;
+        }
+        addressesString = string;
       }
       var betsString = 'null';
       if (val.bets != null) {
-        betsString = val.bets.toString();
+        var string = '';
+        var betsDict = Dictionary.loadDirect(
+          Dictionary.Keys.Uint(16),
+          Dictionary.Values.Int(32),
+          val.bets
+        );
+        for (let key = 0; key < betsDict.size; key++) {
+          var bet = betsDict.get(key);
+          string = string + ' ' + bet?.toString();
+        }
+        betsString = string;
       }
       setContractData({
         is_timer_started: val.is_timer_started,
         contributors_count: val.number,
-        recent_sender: val.recent_sender.toString(),
+        last_winner: val.last_winner.toString(),
         owner_address: val.owner_address.toString(),
         timer_address: val.timer_address.toString(),
         addresses: addressesString,
         bets: betsString,
         total_sum: val.total_sum,
+        timer_end_date: val.timer_end_date
+          ? new Date(val.timer_end_date * 1000).toString()
+          : null,
       });
       const { balance } = await mainContract.getBalance();
       setBalance(balance);
-      await sleep(5000); // sleep 5 seconds and poll value again
+      await sleep(10000); // sleep 5 seconds and poll value again
       getValue();
     }
     getValue();
@@ -72,12 +96,13 @@ export function useWheelContract() {
     contract_balance: balance,
     is_timer_started: contractData?.is_timer_started,
     contributors_count: contractData?.contributors_count,
-    recent_sender: contractData?.recent_sender,
+    last_winner: contractData?.last_winner,
     owner_address: contractData?.owner_address,
     timer_address: contractData?.timer_address,
     addresses: contractData?.addresses,
     bets: contractData?.bets,
     total_sum: contractData?.total_sum,
+    timer_end_date: contractData?.timer_end_date,
     sendNewOwnerAddress: (ownerAddress: string) => {
       return mainContract?.sendNewOwnerAddress(
         sender,
@@ -92,8 +117,8 @@ export function useWheelContract() {
         Address.parse(timerAddress)
       );
     },
-    sendDeposit: (amount?: string) => {
-      return mainContract?.sendDeposit(sender, toNano(amount ?? 0.1));
+    sendDeposit: (amount: string) => {
+      return mainContract?.sendDeposit(sender, toNano(amount));
     },
     sendFinishGameRequest: () => {
       return mainContract?.sendFinishGameRequest(sender, toNano('0.06'));
