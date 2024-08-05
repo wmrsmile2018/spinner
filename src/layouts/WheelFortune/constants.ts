@@ -1,3 +1,5 @@
+import { MRT_ColumnDef } from 'material-react-table';
+
 export const segments = [
   'addax',
   'goat',
@@ -42,4 +44,31 @@ export const segColors = [
   '#8cd0f2',
   '#4f0d73',
   '#8fc120',
+];
+
+export const columns: MRT_ColumnDef<{
+  index: number;
+  address: string;
+  amount: string;
+}>[] = [
+  {
+    accessorKey: 'colorSeg', //normal accessorKey
+    header: 'color',
+    size: 20,
+  },
+  {
+    accessorKey: 'name', //normal accessorKey
+    header: 'name',
+    size: 50,
+  },
+  {
+    accessorKey: 'addressEl',
+    header: 'Address',
+    size: 100,
+  },
+  {
+    accessorKey: 'amount', //normal accessorKey
+    header: 'Amount',
+    size: 50,
+  },
 ];

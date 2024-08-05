@@ -8,84 +8,31 @@ import {
 } from 'react';
 import { Styled } from './styles';
 import { Auth, Spinner } from '../../components';
-import {
-  useTonAddress,
-  useTonConnectUI,
-  useTonWallet,
-} from '@tonconnect/ui-react';
 import { useMemoOnce } from '../../shared/hooks';
 import { useWheelContract } from './hooks/useWheelContract';
-import {
-  MRT_Table, //import alternative sub-component if we do not want toolbars
-  type MRT_ColumnDef,
-  useMaterialReactTable,
-} from 'material-react-table';
+import { MRT_Table, useMaterialReactTable } from 'material-react-table';
 import dayjs from 'dayjs';
-import { segColors, segments } from './constants';
+import { segColors, segments, columns } from './constants';
 import { isEmpty } from 'lodash';
 import { fromNano } from 'ton-core';
-
-const columns: MRT_ColumnDef<{
-  index: number;
-  address: string;
-  amount: string;
-}>[] = [
-  {
-    accessorKey: 'colorSeg', //normal accessorKey
-    header: 'color',
-    size: 20,
-  },
-  {
-    accessorKey: 'name', //normal accessorKey
-    header: 'name',
-    size: 50,
-  },
-  {
-    accessorKey: 'address',
-    header: 'Address',
-    size: 100,
-  },
-  {
-    accessorKey: 'amount', //normal accessorKey
-    header: 'Amount',
-    size: 50,
-  },
-];
 
 export type WheelFortuneProps = {};
 
 export const WheelFortune: FC<WheelFortuneProps> = () => {
   const [amount, setAmount] = useState('0.1');
-  const [tonConnectUI] = useTonConnectUI();
   const {
-    contract_address,
-    contract_balance,
     is_timer_started,
-    contributors_count,
-    owner_address,
-    timer_address,
     last_winner,
     addresses,
     bets,
-    total_sum,
-    sendNewOwnerAddress,
-    sendNewTimerAddress,
     sendDeposit,
-    sendFinishGameRequest,
     timer_end_date,
   } = useWheelContract();
 
-  const wallet = useTonWallet();
-  const userFriendlyAddress = useTonAddress();
-  const rawAddress = useTonAddress(false);
-
   const memoizedTimerEndDate = useMemoOnce(timer_end_date);
   const [timer, setTimer] = useState<number | null>(null);
+  const [readyToSpin, setReadyToSpin] = useState(false);
   const [winnerSegment, setWinnerSegment] = useState('');
-
-  const onFinished = (winner: string) => {
-    console.log(winner);
-  };
 
   const participants = useMemo(() => {
     if (addresses === 'null') {
@@ -118,6 +65,18 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
         amount: amounts[i],
         name: segments[i],
         color: segColors[i],
+        addressEl: (
+          <p
+            style={{
+              width: 100,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {item}
+          </p>
+        ),
       })),
     [participants, amount, segments, segColors]
   );
@@ -160,39 +119,22 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
     },
   });
 
-  // useEffect(() => {
-  //   console.log('is_timer_started', { is_timer_started, memoizedTimerEndDate });
-  // }, [is_timer_started, memoizedTimerEndDate]);
-
   useEffect(() => {
-    console.log('memoizedTimerEndDate, is_timer_started', {
-      memoizedTimerEndDate,
-      is_timer_started,
-    });
-
     const difTimer = dayjs(memoizedTimerEndDate).diff(dayjs());
     let intervalId: number;
 
     if (is_timer_started && difTimer > 0) {
-      const startSpin = () => {
-        const canvasEl = document.getElementById('canvas');
-
-        if (canvasEl) {
-          canvasEl.click();
-        }
-      };
-
       intervalId = setInterval(() => {
         setTimer((prev) => {
           if (prev && prev <= 0) {
             clearInterval(intervalId);
             setTimer(null);
-            startSpin();
+            setReadyToSpin(true);
+            setWinnerSegment('');
           }
           return dayjs(memoizedTimerEndDate).diff(dayjs());
         });
-      }, 10);
-      // setTimeout(startSpin, difTimer);
+      }, 100);
     }
   }, [memoizedTimerEndDate, is_timer_started]);
 
@@ -202,6 +144,22 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
     },
     []
   );
+  const addressWinner = useMemo(
+    () => data.find((item) => item.address === last_winner),
+    [last_winner, data]
+  );
+
+  useEffect(() => {
+    if (addressWinner && readyToSpin) {
+      setReadyToSpin(false);
+      setWinnerSegment(addressWinner.address);
+      const canvasEl = document.getElementById('canvas');
+
+      if (canvasEl) {
+        canvasEl.click();
+      }
+    }
+  }, [addressWinner]);
 
   return (
     <Styled.Container>
@@ -220,7 +178,7 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
         </Styled.FlexContainer>
         <Styled.FlexContainer direction='row' gap={8} alignitems='flex-end'>
           <Styled.InputTitle>Time until start:</Styled.InputTitle>
-          {memoizedTimerEndDate && timer && (
+          {is_timer_started && timer && (
             <Styled.InputTitle>{`${Math.floor(timer / 1000 / 60)}:${Math.floor(
               (timer / 1000) % 60
             )
@@ -229,12 +187,17 @@ export const WheelFortune: FC<WheelFortuneProps> = () => {
           )}
         </Styled.FlexContainer>
         <MRT_Table table={table} />
+        {winnerSegment && (
+          <Styled.FlexContainer direction='row' gap={8}>
+            <Styled.InputTitle>Winner:</Styled.InputTitle>
+            <Styled.InputTitle>{winnerSegment}</Styled.InputTitle>
+          </Styled.FlexContainer>
+        )}
         {!isEmpty(data) && (
           <Spinner
             segments={data.map((item) => item.name)}
             segColors={data.map((item) => item.color)}
-            winningSegment='Angry'
-            onFinished={(winner) => onFinished(winner)}
+            winningSegment={addressWinner?.name}
             primaryColor='white'
             primaryColoraround='#ffffffb4'
             contrastColor='white'
